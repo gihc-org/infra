@@ -40,12 +40,7 @@ ansible-galaxy collection install ansible.posix   # kun første gang
 ansible-playbook ansible/infra.yml -i ansible/inventory.yml
 ```
 
-Dette:
-1. Installerer Docker på VPS (hvis ikke allerede installeret)
-2. Opretter `/opt/platform/caddy/conf.d/`
-3. Synkroniserer `docker-compose.yml` og `caddy/Caddyfile` til VPS
-4. Opretter `platform_net` Docker-netværket
-5. Starter Caddy
+Playbooken klarer alt: Docker-installation, mappestruktur, filsynkronisering, `platform_net`-netværket og opstart af Caddy.
 
 ## Tilføj et nyt projekt
 
