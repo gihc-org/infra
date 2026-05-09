@@ -1,0 +1,45 @@
+---
+# Engangsopsætning af platform-laget på VPS.
+# Kør dette FØR ipfs-apps og capture deployes.
+#
+# Brug:
+#   ansible-playbook ansible/infra.yml -i ansible/inventory.yml
+
+- name: Opsæt platform-lag (Caddy + platform_net)
+  hosts: gihc_vps
+
+  tasks:
+    - name: Installér Docker (hvis ikke installeret)
+      ansible.builtin.shell: |
+        curl -fsSL https://get.docker.com | sh
+      args:
+        creates: /usr/bin/docker
+
+    - name: Opret platform-mappe
+      ansible.builtin.file:
+        path: "{{ platform_dir }}/caddy/conf.d"
+        state: directory
+        mode: "0755"
+
+    - name: Sync platform-filer
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../"
+        dest: "{{ platform_dir }}/"
+        use_ssh_args: yes
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=ansible"
+
+    - name: Opret platform_net Docker-netværk (hvis mangler)
+      ansible.builtin.command:
+        cmd: docker network create platform_net
+      register: net_result
+      failed_when: net_result.rc != 0 and 'already exists' not in net_result.stderr
+      changed_when: net_result.rc == 0
+
+    - name: Start platform Caddy
+      ansible.builtin.command:
+        cmd: docker compose up -d
+        chdir: "{{ platform_dir }}"
+      register: compose_result
+      changed_when: "'Started' in compose_result.stdout or 'Created' in compose_result.stdout"

@@ -1,0 +1,23 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/conf.d:/etc/caddy/conf.d:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - platform_net
+
+networks:
+  platform_net:
+    name: platform_net
+
+volumes:
+  caddy_data:
+  caddy_config:
