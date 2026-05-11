@@ -30,13 +30,6 @@
           - "--exclude=.git"
           - "--exclude=ansible"
 
-    - name: Opret platform_net Docker-netværk (hvis mangler)
-      ansible.builtin.command:
-        cmd: docker network create platform_net
-      register: net_result
-      failed_when: net_result.rc != 0 and 'already exists' not in net_result.stderr
-      changed_when: net_result.rc == 0
-
     - name: Start platform Caddy
       ansible.builtin.command:
         cmd: docker compose up -d
