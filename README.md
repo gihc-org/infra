@@ -29,6 +29,34 @@ infra/
         └── vars.yml
 ```
 
+## OpenTofu (infrastruktur)
+
+Hetzner VPS, SSH-nøgle og firewall styres via OpenTofu.
+
+```
+tofu/
+├── versions.tf             # provider-krav (hcloud ~> 1.49)
+├── variables.tf            # konfiguration
+├── main.tf                 # server + firewall
+├── outputs.tf              # server IP
+└── terraform.tfvars.example
+```
+
+Token sættes via `HCLOUD_TOKEN` miljøvariablen (læses direkte af hcloud-provideren):
+
+```bash
+# .envrc i tofu/ (gitignored) — direnv loader den automatisk
+export HCLOUD_TOKEN=$(pass hetzner/token)
+```
+
+### Løbende brug
+
+```bash
+cd tofu
+tofu plan    # vis hvad der vil ændre sig
+tofu apply   # anvend ændringer
+```
+
 ## Opsætning (første gang)
 
 Forudsætninger:

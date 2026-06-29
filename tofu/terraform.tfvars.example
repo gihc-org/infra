@@ -1,0 +1,10 @@
+# hcloud_token sættes som miljøvariabel — ikke her:
+#   export TF_VAR_hcloud_token="dit-hetzner-api-token"
+#
+# Alle variabler nedenfor har allerede korrekte defaults i variables.tf.
+# Opret kun en terraform.tfvars hvis du vil overstyre en default.
+
+# server_name         = "ubuntu-4gb-hel1-1"
+# server_type         = "cpx22"
+# server_location     = "hel1"
+# ssh_public_key_path = "~/.ssh/id_ed25519.hetzner.pub"
