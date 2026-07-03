@@ -8,3 +8,4 @@ tofu/*.tfvars
 tofu/.terraform.lock.hcl
 
 tofu/.envrc
+.aider*
