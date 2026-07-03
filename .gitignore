@@ -1,4 +1,5 @@
 caddy/conf.d/
+kubeconfig.yml
 
 # OpenTofu
 tofu/.terraform/
