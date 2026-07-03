@@ -1,38 +1,50 @@
 ---
-# Engangsopsætning af platform-laget på VPS.
-# Kør dette FØR ipfs-apps og capture deployes.
+# Post-provisioning af k3s på VPS.
+# Kør dette EFTER `tofu apply` er færdig.
 #
 # Brug:
 #   ansible-playbook ansible/infra.yml -i ansible/inventory.yml
 
-- name: Opsæt platform-lag (Caddy + platform_net)
+- name: Opsæt k3s platform
   hosts: gihc_vps
 
   tasks:
-    - name: Installér Docker (hvis ikke installeret)
-      ansible.builtin.shell: |
-        curl -fsSL https://get.docker.com | sh
-      args:
-        creates: /usr/bin/docker
+    - name: Vent på at k3s er klar
+      ansible.builtin.wait_for:
+        path: /etc/rancher/k3s/k3s.yaml
+        timeout: 300
 
-    - name: Opret platform-mappe
+    - name: Vent på at k3s API-server svarer
+      ansible.builtin.wait_for:
+        host: "127.0.0.1"
+        port: 6443
+        timeout: 300
+
+    - name: Hent kubeconfig
+      ansible.builtin.fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "{{ playbook_dir }}/../kubeconfig.yml"
+        flat: yes
+
+    - name: Erstat 127.0.0.1 med server IP i kubeconfig
+      ansible.builtin.replace:
+        path: "{{ playbook_dir }}/../kubeconfig.yml"
+        regexp: '127\.0\.0\.1'
+        replace: "{{ ansible_host }}"
+      delegate_to: localhost
+
+    - name: Sæt korrekte rettigheder på kubeconfig
       ansible.builtin.file:
-        path: "{{ platform_dir }}/caddy/conf.d"
-        state: directory
-        mode: "0755"
+        path: "{{ playbook_dir }}/../kubeconfig.yml"
+        mode: "0600"
+      delegate_to: localhost
 
-    - name: Sync platform-filer
-      ansible.posix.synchronize:
-        src: "{{ playbook_dir }}/../"
-        dest: "{{ platform_dir }}/"
-        use_ssh_args: yes
-        rsync_opts:
-          - "--exclude=.git"
-          - "--exclude=ansible"
-
-    - name: Start platform Caddy
+    - name: Verificér at k3s kører
       ansible.builtin.command:
-        cmd: docker compose up -d
-        chdir: "{{ platform_dir }}"
-      register: compose_result
-      changed_when: "'Started' in compose_result.stdout or 'Created' in compose_result.stdout"
+        cmd: k3s kubectl get nodes
+      register: nodes_result
+      changed_when: false
+
+    - name: Vis k3s nodes
+      ansible.builtin.debug:
+        msg: "{{ nodes_result.stdout_lines }}"
