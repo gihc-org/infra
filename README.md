@@ -1,29 +1,20 @@
 # infra
 
-Platform-lag til `gihc.online`-serveren. Kører én delt Caddy-instans der betjener alle applikationer på VPS'en.
-
-## Konceptet
-
-Hvert projekt (`ipfs-apps`, `capture`, ...) ejer sin egen `.caddy`-konfigurationsfil i `conf.d/`. Platform-Caddy importerer dem alle:
-
-```
-conf.d/
-  chat.caddy   ← skrives af ipfs-apps ansible
-  notes.caddy  ← skrives af capture ansible
-```
-
-Projekterne er fuldstændigt isolerede: et projekt kan ikke ødelægge et andet projekts Caddy-konfiguration.
+Platform-lag til `gihc.online`-serveren. Styrer Hetzner-infrastruktur via OpenTofu
+og k3s-opsætning via Ansible.
 
 ## Struktur
 
 ```
 infra/
-├── docker-compose.yml      # Caddy-service + platform_net netværk
-├── caddy/
-│   ├── Caddyfile           # global config: email + import conf.d/*.caddy
-│   └── conf.d/             # udfyldes af de enkelte projekters ansible (gitignored)
+├── tofu/                   # OpenTofu — Hetzner VPS, netværk, firewall, SSH-nøgle
+│   ├── versions.tf
+│   ├── variables.tf
+│   ├── main.tf
+│   ├── outputs.tf
+│   └── terraform.tfvars.example
 └── ansible/
-    ├── infra.yml           # engangsopsætning af VPS
+    ├── infra.yml           # k3s post-provisioning (kubeconfig, verificering)
     ├── inventory.yml
     └── group_vars/all/
         └── vars.yml
@@ -31,23 +22,20 @@ infra/
 
 ## OpenTofu (infrastruktur)
 
-Hetzner VPS, SSH-nøgle og firewall styres via OpenTofu.
+Hetzner VPS, SSH-nøgle, privat netværk og firewall styres via OpenTofu.
+State gemmes i Hetzner Object Storage (`gihc-tofu-state`, hel1).
 
-```
-tofu/
-├── versions.tf             # provider-krav (hcloud ~> 1.49)
-├── variables.tf            # konfiguration
-├── main.tf                 # server + firewall
-├── outputs.tf              # server IP
-└── terraform.tfvars.example
-```
+### Forudsætninger
 
-Token sættes via `HCLOUD_TOKEN` miljøvariablen (læses direkte af hcloud-provideren):
+Opret `tofu/.envrc` (gitignored) med følgende indhold — tilpas `pass`-stierne:
 
 ```bash
-# .envrc i tofu/ (gitignored) — direnv loader den automatisk
 export HCLOUD_TOKEN=$(pass hetzner/token)
+export AWS_ACCESS_KEY_ID=$(pass hetzner/object-storage/access-key)
+export AWS_SECRET_ACCESS_KEY=$(pass hetzner/object-storage/secret-key)
 ```
+
+Kør derefter `direnv allow` inde i `tofu/`-mappen.
 
 ### Løbende brug
 
@@ -57,52 +45,59 @@ tofu plan    # vis hvad der vil ændre sig
 tofu apply   # anvend ændringer
 ```
 
-## Opsætning (første gang)
+### Genimport af state (ny maskine eller tom state)
 
-Forudsætninger:
+Hvis state-bucketen er tom eller du skifter maskine, skal alle Hetzner-ressourcer
+importeres manuelt. Kør kommandoerne i denne rækkefølge (rækkefølgen er vigtig
+pga. afhængigheder). Slå netværks- og firewall-ID'er op i
+[Hetzner Cloud Console](https://console.hetzner.cloud).
+
+```bash
+tofu import hcloud_ssh_key.default 111588227
+tofu import hcloud_network.platform <network-id>
+tofu import hcloud_network_subnet.platform <network-id>/10.0.1.0/24
+tofu import hcloud_server.platform 128627926
+tofu import hcloud_firewall.platform <firewall-id>
+tofu import hcloud_firewall_attachment.platform <firewall-id>
+```
+
+Verificér efterfølgende at der ikke er uventede ændringer:
+
+```bash
+tofu plan    # skal vise: No changes
+```
+
+## Ansible (k3s post-provisioning)
+
+Ansible-playbooken køres efter `tofu apply` og sørger for at k3s er klar og
+henter kubeconfig ned til din lokale maskine.
+
+### Forudsætninger
+
 - Ansible installeret lokalt
 - SSH-nøgle til VPS: `~/.ssh/id_ed25519.hetzner`
 
 ```bash
 ansible-galaxy collection install ansible.posix   # kun første gang
+```
+
+### Kør playbook
+
+```bash
 ansible-playbook ansible/infra.yml -i ansible/inventory.yml
 ```
 
-Playbooken klarer alt: Docker-installation, mappestruktur, filsynkronisering, `platform_net`-netværket og opstart af Caddy.
-
-## Tilføj et nyt projekt
-
-1. Lav en `<app>.caddy.j2`-template i projektets ansible-mappe
-2. Tilføj en task i projektets `deploy-test.yml`:
-   ```yaml
-   - name: Skriv <app>.caddy til platform conf.d
-     ansible.builtin.template:
-       src: templates/<app>.caddy.j2
-       dest: /opt/platform/caddy/conf.d/<app>.caddy
-       mode: "0644"
-
-   - name: Genindlæs platform Caddy
-     ansible.builtin.command:
-       cmd: docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile
-       chdir: /opt/platform
-   ```
-3. Sørg for at projektets containers joiner `platform_net`:
-   ```yaml
-   networks:
-     platform_net:
-       name: platform_net
-       external: true
-   ```
-
-## Caddy reload vs. restart
-
-- `caddy reload` — genindlæser config uden nedetid (brug dette normalt)
-- `docker compose restart caddy` — fuld genstart (brug kun hvis reload fejler)
+Playbooken:
+1. Venter på at k3s er klar (op til 5 min efter server-boot)
+2. Henter kubeconfig til `kubeconfig.yml` i roden af projektet
+3. Erstatter `127.0.0.1` med serverens public IP i kubeconfig
+4. Verificerer at k3s kører med `kubectl get nodes`
 
 ## VPS
 
 | | |
 |---|---|
 | IP | 65.109.233.92 |
-| Platform-mappe | `/opt/platform/` |
-| Docker-netværk | `platform_net` |
+| OS | Ubuntu 24.04 |
+| Type | cpx22 (3 vCPU / 4 GB RAM) |
+| Lokation | hel1 (Helsinki) |

@@ -14,31 +14,13 @@ for en dedikeret CI-maskine.
 - [ ] Skriv Ansible-playbook til Pi: installér Docker, deploy `docker-compose.yml` med Woodpecker server + agent, start services
 - [ ] Forbind til GitHub som forge (OAuth app i GitHub → Settings → Developer settings)
 - [ ] Tilføj `HCLOUD_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` og `ssh_private_key` som krypterede secrets i Woodpecker UI
-
----
-
-## Fase 1b — Remote state (forudsætning for Woodpecker + tofu i CI)
-
-Uden delt state kan CI ikke køre `tofu apply` sikkert — state skal ligge i
-Hetzner Object Storage så både din lokale maskine og Woodpecker-agenten på Pi'en
-bruger samme state.
-
-- [ ] Opret Hetzner Object Storage bucket (`gihc-tofu-state`) i hel1
-- [ ] Generér S3-credentials i Hetzner Console og gem i `pass`:
-  - `pass insert hetzner/s3-access-key`
-  - `pass insert hetzner/s3-secret-key`
-- [ ] Tilføj `AWS_ACCESS_KEY_ID` og `AWS_SECRET_ACCESS_KEY` til `tofu/.envrc`
-- [ ] Opdater `tofu/versions.tf` med S3-backend (bucket-navn + endpoint)
-- [ ] Kør `tofu init -migrate-state` for at flytte lokal state til bucket
 - [ ] Skriv `.woodpecker.yaml`: `tofu plan` på PR, `tofu apply` på push til trunk
 
 ---
 
 ## Fase 2 — k3s-installation via Ansible
 
-- [ ] Opdater `ansible/infra.yml`: erstat Docker-installation med k3s-installation
-  - `curl -sfL https://get.k3s.io | sh` med relevant konfiguration
-  - Deaktivér Traefik-standard (vi styrer ingress selv)
+- [ ] Kør `ansible/infra.yml` mod VPS for at verificere k3s er klar
 - [ ] Hent kubeconfig fra VPS og gem lokalt (`~/.kube/config`)
 - [ ] Verificér: `kubectl get nodes`
 
