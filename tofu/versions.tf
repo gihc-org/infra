@@ -16,15 +16,15 @@ terraform {
   # without stepping on each other, and state is not lost if the local
   # machine is wiped.
   backend "s3" {
-    bucket = "platform-tofu-state"
+    bucket = "gihc-tofu-state"
     key    = "platform/terraform.tfstate"
 
     # Hetzner Object Storage S3-compatible endpoint (Falkenstein region)
     endpoints = {
-      s3 = "https://fsn1.your-objectstorage.com"
+      s3 = "https://hel1.your-objectstorage.com"
     }
 
-    region = "fsn1"
+    region = "hel1"
 
     # Credentials are set via environment variables so they are never
     # committed to the repository:
