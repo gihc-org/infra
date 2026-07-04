@@ -19,7 +19,7 @@ terraform {
     bucket = "gihc-tofu-state"
     key    = "platform/terraform.tfstate"
 
-    # Hetzner Object Storage S3-compatible endpoint (Falkenstein region)
+    # Hetzner Object Storage S3-compatible endpoint (Helsinki region)
     endpoints = {
       s3 = "https://hel1.your-objectstorage.com"
     }
@@ -43,5 +43,15 @@ terraform {
 provider "hcloud" {
   # The Hetzner API token is read from the HCLOUD_TOKEN environment variable.
   # It is set automatically by direnv via tofu/.envrc (which is gitignored).
+  #
+  # IMPORTANT: Hetzner Cloud does not support specifying a project directly in
+  # the provider configuration. Resources are created in whichever project the
+  # API token belongs to. The token used here must belong to the "GIHC" project
+  # in the Hetzner Cloud Console — using a token from a different project will
+  # silently create resources in the wrong project.
+  #
+  # To generate a token for the correct project:
+  #   Hetzner Cloud Console → GIHC project → Security → API Tokens → Generate API Token
+  #
   # Note: TF_VAR_hcloud_token does NOT work with this provider — use HCLOUD_TOKEN.
 }
