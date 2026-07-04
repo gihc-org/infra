@@ -6,7 +6,6 @@ tofu/.terraform/
 tofu/*.tfstate
 tofu/*.tfstate.backup
 tofu/*.tfvars
-tofu/.terraform.lock.hcl
 
 tofu/.envrc
 .aider*
