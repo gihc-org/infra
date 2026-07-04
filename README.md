@@ -7,6 +7,7 @@ og k3s-opsætning via Ansible.
 
 ```
 infra/
+├── ansible.cfg             # skal ligge i repo-roden — Ansible leder kun efter config i CWD
 ├── tofu/                   # OpenTofu — Hetzner VPS, netværk, firewall, SSH-nøgle
 │   ├── versions.tf
 │   ├── variables.tf
@@ -14,8 +15,10 @@ infra/
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
 └── ansible/
-    ├── infra.yml           # k3s post-provisioning (kubeconfig, verificering)
+    ├── infra.yml           # k3s installation/opgradering + post-provisioning
     ├── inventory.yml
+    ├── templates/
+    │   └── k3s-config.yaml.j2
     └── group_vars/all/
         └── vars.yml
 ```
@@ -67,10 +70,16 @@ Verificér efterfølgende at der ikke er uventede ændringer:
 tofu plan    # skal vise: No changes
 ```
 
-## Ansible (k3s post-provisioning)
+## Ansible (k3s installation og livscyklus)
 
-Ansible-playbooken køres efter `tofu apply` og sørger for at k3s er klar og
-henter kubeconfig ned til din lokale maskine.
+Ansible ejer hele k3s-livscyklussen — installation, opgradering og konfiguration.
+Tofu opretter kun den bare VPS; `user_data`/cloud-init installerer ikke k3s,
+fordi det kun kører én gang ved boot og derfor ikke kan bruges til opgraderinger.
+
+k3s-konfigurationen (`--disable traefik`, `--flannel-iface`, `--tls-san` osv.)
+ligger deklarativt i `ansible/templates/k3s-config.yaml.j2`, som templates til
+`/etc/rancher/k3s/config.yaml` på serveren — det er den mekanisme k3s selv
+tilbyder til konfiguration, i stedet for CLI-flags gemt i et install-script.
 
 ### Forudsætninger
 
@@ -88,10 +97,18 @@ ansible-playbook ansible/infra.yml -i ansible/inventory.yml
 ```
 
 Playbooken:
-1. Venter på at k3s er klar (op til 5 min efter server-boot)
-2. Henter kubeconfig til `kubeconfig.yml` i roden af projektet
-3. Erstatter `127.0.0.1` med serverens public IP i kubeconfig
-4. Verificerer at k3s kører med `kubectl get nodes`
+1. Templater `/etc/rancher/k3s/config.yaml`
+2. Installerer eller opgraderer k3s til `k3s_version` (se `group_vars/all/vars.yml`)
+3. Venter på at k3s er klar (op til 5 min)
+4. Henter kubeconfig til `kubeconfig.yml` i roden af projektet
+5. Erstatter `127.0.0.1` med serverens public IP i kubeconfig
+6. Verificerer at k3s kører med `kubectl get nodes`
+
+### Opgrader k3s
+
+Bump `k3s_version` i `ansible/group_vars/all/vars.yml` og kør playbooken igen.
+Install-scriptet fra `get.k3s.io` er idempotent og opgraderer et eksisterende
+k3s in-place.
 
 ## VPS
 

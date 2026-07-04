@@ -39,45 +39,21 @@ resource "hcloud_network_subnet" "platform" {
 
 # ── Server ───────────────────────────────────────────────────────────────────
 
-locals {
-  # Cloud-init / user_data script that runs once when the server first boots.
-  # It installs k3s in single-node mode with:
-  #   --disable traefik        — we manage ingress ourselves (nginx/Caddy via Helm)
-  #   --flannel-iface eth1     — use the private network interface for pod traffic
-  #                              so inter-pod communication stays off the public internet
-  #   --node-ip                — advertise the private IP as the node address
-  #   --tls-san                — add the public IPv4 to the k3s API server certificate
-  #                              so kubectl can connect from outside the server
-  k3s_install_script = <<-EOT
-    #!/bin/bash
-    set -euo pipefail
-
-    # Vent på at apt er klar
-    until apt-get update -y; do sleep 5; done
-
-    # Installer k3s
-    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="${var.k3s_version == "latest" ? "" : var.k3s_version}" sh -s - \
-      --disable traefik \
-      --flannel-iface eth1 \
-      --node-ip $(hostname -I | awk '{print $2}') \
-      --tls-san $(curl -s http://169.254.169.254/hetzner/v1/metadata/public-ipv4)
-
-    # Gør kubeconfig tilgængelig for root
-    chmod 644 /etc/rancher/k3s/k3s.yaml
-  EOT
-}
-
 # The main VPS that runs the k3s cluster.
 # A single-node cluster is sufficient for the current workload and keeps
 # costs low. The server is attached to the private network so pods can
 # communicate over private IPs.
+#
+# k3s itself is NOT installed here. Installation and upgrades are owned by
+# Ansible (ansible/infra.yml), which templates /etc/rancher/k3s/config.yaml
+# and (re-)runs the k3s install script — that keeps the install idempotent
+# and re-appliable, which a one-shot cloud-init user_data script cannot be.
 resource "hcloud_server" "platform" {
   name        = var.server_name
   server_type = var.server_type
   location    = var.server_location
   image       = "ubuntu-24.04"
   ssh_keys    = [hcloud_ssh_key.default.id]
-  user_data   = local.k3s_install_script
 
   # Attach the server to the private subnet with a fixed IP (.1 in the subnet)
   # so the address is predictable and does not change on reboot
@@ -93,7 +69,7 @@ resource "hcloud_server" "platform" {
     # These fields are set only at creation time by Hetzner and cannot be
     # changed in-place — ignoring them prevents OpenTofu from proposing a
     # destructive replacement after the server was imported into state.
-    ignore_changes = [image, ssh_keys, user_data]
+    ignore_changes = [image, ssh_keys]
   }
 }
 

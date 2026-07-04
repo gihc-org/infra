@@ -12,7 +12,6 @@
 # server_type         = "cpx22"
 # server_location     = "hel1"
 # ssh_public_key_path = "~/.ssh/id_ed25519.hetzner.pub"
-# k3s_version         = "latest"          # f.eks. "v1.29.4+k3s1"
 # network_zone        = "eu-central"
 # network_ip_range    = "10.0.0.0/8"
 # subnet_ip_range     = "10.0.1.0/24"

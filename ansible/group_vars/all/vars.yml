@@ -1,1 +1,6 @@
 platform_dir: /opt/platform
+
+# k3s version to install. Use "latest" for the newest stable release, or pin
+# to a specific version such as "v1.29.4+k3s1" for reproducible builds.
+# Bumping this and re-running ansible/infra.yml upgrades the running cluster.
+k3s_version: latest

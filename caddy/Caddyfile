@@ -1,5 +1,0 @@
-{
-    email kristian.n.jensen@gmail.com
-}
-
-import /etc/caddy/conf.d/*.caddy

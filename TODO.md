@@ -20,9 +20,13 @@ for en dedikeret CI-maskine.
 
 ## Fase 2 — k3s-installation via Ansible
 
-- [ ] Kør `ansible/infra.yml` mod VPS for at verificere k3s er klar
-- [ ] Hent kubeconfig fra VPS og gem lokalt (`~/.kube/config`)
-- [ ] Verificér: `kubectl get nodes`
+Ansible ejer nu k3s-installation og -opgradering (ikke kun post-provisioning):
+`ansible/infra.yml` templater `/etc/rancher/k3s/config.yaml` og kører
+install-scriptet, som er idempotent og kan genkøres for at opgradere.
+
+- [x] Kør `tofu apply` (opretter bar VPS uden k3s i user_data)
+- [x] Kør `ansible/infra.yml` mod VPS'en — installerer k3s og henter kubeconfig
+- [x] Verificér: `kubectl get nodes`
 
 ---
 
@@ -41,7 +45,9 @@ for en dedikeret CI-maskine.
 - [ ] `ipfs-apps`: opret `Namespace`, `Deployment`, `Service`, `Ingress`
 - [ ] `capture`: opret `Namespace`, `Deployment`, `Service`, `Ingress`
 - [ ] Verificér at eksisterende domæner virker efter migration
-- [ ] Fjern Docker Compose + Caddy fra VPS
+
+`docker-compose.yml` og `caddy/` er allerede fjernet fra repoet (den gamle
+server de kørte på er slettet).
 
 ---
 

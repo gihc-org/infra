@@ -1,6 +1,7 @@
 ---
-# Post-provisioning af k3s på VPS.
-# Kør dette EFTER `tofu apply` er færdig.
+# Installerer/opgraderer k3s på VPS'en og henter kubeconfig ned lokalt.
+# Kør dette EFTER `tofu apply` er færdig. Re-kørbar: bump `k3s_version` i
+# group_vars/all/vars.yml og kør playbooken igen for at opgradere clusteret.
 #
 # Brug:
 #   ansible-playbook ansible/infra.yml -i ansible/inventory.yml
@@ -9,6 +10,23 @@
   hosts: gihc_vps
 
   tasks:
+    - name: Opret /etc/rancher/k3s
+      ansible.builtin.file:
+        path: /etc/rancher/k3s
+        state: directory
+        mode: "0755"
+
+    - name: Templat k3s config.yaml
+      ansible.builtin.template:
+        src: templates/k3s-config.yaml.j2
+        dest: /etc/rancher/k3s/config.yaml
+        mode: "0644"
+
+    - name: Installer eller opgrader k3s
+      ansible.builtin.shell: curl -sfL https://get.k3s.io | sh -s -
+      environment:
+        INSTALL_K3S_VERSION: "{{ '' if k3s_version == 'latest' else k3s_version }}"
+
     - name: Vent på at k3s er klar
       ansible.builtin.wait_for:
         path: /etc/rancher/k3s/k3s.yaml
@@ -44,6 +62,9 @@
         cmd: k3s kubectl get nodes
       register: nodes_result
       changed_when: false
+      retries: 10
+      delay: 3
+      until: "'Ready' in nodes_result.stdout"
 
     - name: Vis k3s nodes
       ansible.builtin.debug:

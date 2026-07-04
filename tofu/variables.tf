@@ -23,15 +23,6 @@ variable "ssh_public_key_path" {
   default = "~/.ssh/id_ed25519.hetzner.pub"
 }
 
-# k3s version to install on the server.
-# Use "latest" to always get the newest stable release, or pin to a specific
-# version such as "v1.29.4+k3s1" for reproducible builds.
-variable "k3s_version" {
-  type        = string
-  default     = "latest"
-  description = "k3s version to install, e.g. 'v1.29.4+k3s1' or 'latest'"
-}
-
 # Hetzner network zone for the private network.
 # eu-central covers hel1, fsn1 and nbg1.
 variable "network_zone" {
