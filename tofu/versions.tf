@@ -9,6 +9,25 @@ terraform {
       source  = "hetznercloud/hcloud"
       version = "~> 1.49"
     }
+
+    # Installs/manages Helm releases (ingress-nginx, cert-manager) directly
+    # against the k3s API — talks to the Helm/Kubernetes APIs via SDK, no
+    # local `helm` or `kubectl` binary required.
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.16"
+    }
+
+    # Applies plain Kubernetes manifests (e.g. cert-manager's ClusterIssuer).
+    # Used instead of hashicorp/kubernetes' kubernetes_manifest resource
+    # because that resource needs to know a CRD's schema at plan time — which
+    # fails for CRDs created by a helm_release in the same apply. kubectl_manifest
+    # applies without validating against the schema up front, avoiding that
+    # chicken-and-egg problem.
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = "~> 2.1"
+    }
   }
 
   # Remote state backend using Hetzner Object Storage (S3-compatible).
@@ -38,6 +57,15 @@ terraform {
     skip_region_validation      = true
     use_path_style              = true
   }
+}
+
+locals {
+  # kubeconfig fetched by ansible/infra.yml after k3s is installed (see
+  # ansible/infra.yml's "Hent kubeconfig" task). The helm/kubectl providers
+  # below read cluster credentials from this file, so `ansible-playbook
+  # ansible/infra.yml` must be run at least once before `tofu apply` can
+  # manage the platform-lag resources in platform.tf.
+  kubeconfig_path = "${path.module}/../kubeconfig.yml"
 }
 
 provider "hcloud" {

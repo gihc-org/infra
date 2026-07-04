@@ -8,10 +8,11 @@ og k3s-opsætning via Ansible.
 ```
 infra/
 ├── ansible.cfg             # skal ligge i repo-roden — Ansible leder kun efter config i CWD
-├── tofu/                   # OpenTofu — Hetzner VPS, netværk, firewall, SSH-nøgle
+├── tofu/                   # OpenTofu — Hetzner VPS, netværk, firewall, SSH-nøgle, platform-lag
 │   ├── versions.tf
 │   ├── variables.tf
 │   ├── main.tf
+│   ├── platform.tf         # ingress-nginx, cert-manager, ClusterIssuers (via Helm/kubectl providers)
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
 └── ansible/
@@ -27,6 +28,24 @@ infra/
 
 Hetzner VPS, SSH-nøgle, privat netværk og firewall styres via OpenTofu.
 State gemmes i Hetzner Object Storage (`gihc-tofu-state`, hel1).
+
+Serveren har automatiske Hetzner-backups slået til (`backups = true`, rullende
+daglige snapshots af hele disken, ~20 % oveni serverprisen) — den eneste
+beskyttelse mod at miste alt, da clusteret kører på én node uden redundans.
+
+### k3s API'en er ikke offentligt tilgængelig
+
+Firewall'en lukker port 6443 (k3s API) for offentlig adgang — kun SSH (22),
+HTTP (80) og HTTPS (443) er åbne. `kubectl`, `helm` og OpenTofus platform-lag
+(`platform.tf`) skal derfor bruge en SSH-tunnel:
+
+```bash
+ssh -L 6443:localhost:6443 -N -f root@65.109.233.92
+```
+
+`kubeconfig.yml` (hentet af Ansible) peger allerede på `127.0.0.1:6443`, så
+alt virker uden yderligere opsætning så snart tunnelen er åben. Kør tunnel-
+kommandoen som output fra Tofu: `tofu output kubeconfig_tunnel_command`.
 
 ### Forudsætninger
 
@@ -70,6 +89,12 @@ Verificér efterfølgende at der ikke er uventede ændringer:
 tofu plan    # skal vise: No changes
 ```
 
+Ressourcerne i `platform.tf` (Helm-releases, ClusterIssuers) er ikke med i
+denne liste — de er markant bøvlede at genimportere korrekt (specielt
+`kubectl_manifest`s import-format). Går state tabt igen mens de findes i
+clusteret, er det typisk hurtigere at slette dem fra clusteret manuelt og
+lade et normalt `tofu apply` genskabe dem end at forsøge at importere.
+
 ## Ansible (k3s installation og livscyklus)
 
 Ansible ejer hele k3s-livscyklussen — installation, opgradering og konfiguration.
@@ -100,15 +125,37 @@ Playbooken:
 1. Templater `/etc/rancher/k3s/config.yaml`
 2. Installerer eller opgraderer k3s til `k3s_version` (se `group_vars/all/vars.yml`)
 3. Venter på at k3s er klar (op til 5 min)
-4. Henter kubeconfig til `kubeconfig.yml` i roden af projektet
-5. Erstatter `127.0.0.1` med serverens public IP i kubeconfig
-6. Verificerer at k3s kører med `kubectl get nodes`
+4. Henter kubeconfig til `kubeconfig.yml` i roden af projektet (peger på
+   `127.0.0.1:6443` — se afsnittet om SSH-tunnel ovenfor)
+5. Verificerer at k3s kører med `kubectl get nodes`
 
 ### Opgrader k3s
 
 Bump `k3s_version` i `ansible/group_vars/all/vars.yml` og kør playbooken igen.
 Install-scriptet fra `get.k3s.io` er idempotent og opgraderer et eksisterende
 k3s in-place.
+
+## Platform-lag (ingress-nginx + cert-manager)
+
+`tofu/platform.tf` installerer ingress-controller og cert-manager via Helm,
+og opretter to Let's Encrypt `ClusterIssuer`s (`letsencrypt-staging` og
+`letsencrypt-prod`) — alt sammen som almindelige OpenTofu-ressourcer via
+`hashicorp/helm`- og `alekc/kubectl`-providers. Ingen lokal `helm`- eller
+`kubectl`-binary nødvendig; providerne taler direkte med Kubernetes-API'et.
+
+Kræver at ansible/infra.yml er kørt mindst én gang (kubeconfig.yml skal
+eksistere) og at SSH-tunnelen til k3s API'en er åben (se ovenfor):
+
+```bash
+ssh -L 6443:localhost:6443 -N -f root@65.109.233.92
+cd tofu
+tofu plan
+tofu apply
+```
+
+k3s' indbyggede ServiceLB (Klipper) — kun `traefik` er disabled, ikke
+`servicelb` — gør at ingress-nginx' `LoadBalancer`-service automatisk bindes
+til node'ens offentlige IP på port 80/443, uden custom values.
 
 ## VPS
 

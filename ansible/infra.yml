@@ -44,12 +44,9 @@
         dest: "{{ playbook_dir }}/../kubeconfig.yml"
         flat: yes
 
-    - name: Erstat 127.0.0.1 med server IP i kubeconfig
-      ansible.builtin.replace:
-        path: "{{ playbook_dir }}/../kubeconfig.yml"
-        regexp: '127\.0\.0\.1'
-        replace: "{{ ansible_host }}"
-      delegate_to: localhost
+    # kubeconfig.yml is left pointing at 127.0.0.1:6443 on purpose — the k3s
+    # API is not exposed publicly (see tofu/main.tf's firewall). Reach it via
+    # an SSH tunnel: `ssh -L 6443:localhost:6443 -N -f root@<server_ipv4>`.
 
     - name: Sæt korrekte rettigheder på kubeconfig
       ansible.builtin.file:

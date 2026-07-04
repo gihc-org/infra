@@ -55,6 +55,12 @@ resource "hcloud_server" "platform" {
   image       = "ubuntu-24.04"
   ssh_keys    = [hcloud_ssh_key.default.id]
 
+  # Automatic rolling Hetzner backups (whole-disk snapshots, ~7 daily).
+  # Covers OS, k3s state and any local-path-provisioner volume data. Costs
+  # ~20% on top of the server price — the simplest available protection
+  # against losing the single node this cluster runs on.
+  backups = true
+
   # Attach the server to the private subnet with a fixed IP (.1 in the subnet)
   # so the address is predictable and does not change on reboot
   network {
@@ -113,15 +119,13 @@ resource "hcloud_firewall" "platform" {
     source_ips = ["0.0.0.0/0", "::/0"]
   }
 
-  # k3s API server — allows kubectl access from outside the cluster.
-  # Consider restricting source_ips to your own IP ("YOUR_IP/32") for
-  # better security once your IP is stable.
-  rule {
-    direction  = "in"
-    protocol   = "tcp"
-    port       = "6443"
-    source_ips = ["0.0.0.0/0", "::/0"]
-  }
+  # The k3s API server (6443) is intentionally NOT exposed publicly here.
+  # Cluster-admin credentials over the internet is unnecessary attack surface
+  # for a project that has exactly one operator. Reach it instead through an
+  # SSH tunnel over the already-open port 22:
+  #   ssh -L 6443:localhost:6443 -N -f root@<server_ipv4>
+  # kubeconfig.yml points at 127.0.0.1:6443, so kubectl/helm/tofu all work
+  # against that tunnel without any extra configuration. See README.md.
 }
 
 # Attaches the firewall to the server.
