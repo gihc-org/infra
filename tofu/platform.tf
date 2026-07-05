@@ -90,3 +90,84 @@ resource "kubectl_manifest" "letsencrypt_prod" {
 
   depends_on = [helm_release.cert_manager]
 }
+
+# ── Test-echo (Fase 3-verifikation, beholdt som live demo) ──────────────────
+#
+# Beviser at hele kæden virker: DNS → ingress-nginx → cert-manager →
+# Let's Encrypt production → HTTPS. Ikke en rigtig app (det er Fase 4).
+
+resource "kubectl_manifest" "test_echo_deployment" {
+  yaml_body = <<-YAML
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: test-echo
+      namespace: default
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: test-echo
+      template:
+        metadata:
+          labels:
+            app: test-echo
+        spec:
+          containers:
+            - name: echo
+              image: ealen/echo-server:latest
+              ports:
+                - containerPort: 80
+  YAML
+}
+
+resource "kubectl_manifest" "test_echo_service" {
+  yaml_body = <<-YAML
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: test-echo
+      namespace: default
+    spec:
+      selector:
+        app: test-echo
+      ports:
+        - port: 80
+          targetPort: 80
+  YAML
+}
+
+resource "kubectl_manifest" "test_echo_ingress" {
+  yaml_body = <<-YAML
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: test-echo
+      namespace: default
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+    spec:
+      ingressClassName: nginx
+      tls:
+        - hosts:
+            - test.gihc.online
+          secretName: test-gihc-online-tls
+      rules:
+        - host: test.gihc.online
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: test-echo
+                    port:
+                      number: 80
+  YAML
+
+  depends_on = [
+    helm_release.ingress_nginx,
+    kubectl_manifest.letsencrypt_prod,
+    kubectl_manifest.test_echo_service,
+  ]
+}
