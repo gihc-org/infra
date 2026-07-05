@@ -32,19 +32,36 @@ install-scriptet, som er idempotent og kan genkøres for at opgradere.
 
 ## Fase 3 — Platform-lag via Helm
 
-- [ ] Installér ingress-controller (ingress-nginx eller Traefik)
-- [ ] Installér cert-manager
-- [ ] Opret `ClusterIssuer` mod Let's Encrypt (erstatter Caddys automatiske TLS)
-- [ ] Verificér: curl mod en test-Ingress returnerer certifikat
+- [x] Installér ingress-controller (ingress-nginx)
+- [x] Installér cert-manager
+- [x] Opret `ClusterIssuer` mod Let's Encrypt (både staging og prod — erstatter Caddys automatiske TLS)
+- [x] Verificér: curl mod en test-Ingress returnerer certifikat (`test.gihc.online`,
+      production Let's Encrypt-cert, permanent sporet i `tofu/platform.tf`)
+
+Undervejs blev k3s API'en (6443) lukket for offentlig adgang (kun tilgængelig
+via SSH-tunnel) og Hetzner-backups slået til på serveren — se
+`referater/2026-07-04-23-55.md`.
 
 ---
 
 ## Fase 4 — Migrer projekter
 
+Platformen kan hoste en simpel stateless app allerede nu (bevist af
+test-echo-demoen i `platform.tf`), men to ting er ikke afklaret for
+`ipfs-apps`/`capture` endnu:
+
+- [ ] Secrets-strategi i k8s (i dag: `ansible-vault`-krypterede `.env`-filer
+      til Docker Compose — skal erstattes af noget k8s-nativt, fx almindelige
+      `Secret`-objekter oprettet via Ansible/CI, eller Sealed Secrets)
+- [ ] Container-image-strategi (hvor bygges/gemmes images — Docker Hub, GHCR,
+      privat registry med `imagePullSecrets`?)
 - [ ] Afklar hvilke projekter der kører (`ipfs-apps`, `capture` — flere?)
 - [ ] `ipfs-apps`: opret `Namespace`, `Deployment`, `Service`, `Ingress`
 - [ ] `capture`: opret `Namespace`, `Deployment`, `Service`, `Ingress`
 - [ ] Verificér at eksisterende domæner virker efter migration
+
+Dynamisk volume-provisionering er allerede på plads (k3s' indbyggede
+`local-path-provisioner` kører).
 
 `docker-compose.yml` og `caddy/` er allerede fjernet fra repoet (den gamle
 server de kørte på er slettet).
