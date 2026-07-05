@@ -10,6 +10,29 @@
   hosts: gihc_vps
 
   tasks:
+    # Hetzners egen resolver (sat via cloud-init i /etc/netplan/50-cloud-init.yaml)
+    # viste sig at tage 20+ minutter om at fange en helt ny DNS-record, mens
+    # offentlige resolvere (1.1.1.1, 8.8.8.8, 9.9.9.9) havde den med det samme.
+    # Det blokerer cert-manager's HTTP-01 self-check for hver ny app/subdomæne.
+    # Erstatter Hetzners nameservers med hurtigere offentlige resolvere.
+    - name: Peg DNS-resolver på 1.1.1.1 i stedet for Hetzners egen
+      ansible.builtin.replace:
+        path: /etc/netplan/50-cloud-init.yaml
+        regexp: '- 2a01:4ff:ff00::add:2'
+        replace: "- 1.1.1.1"
+      register: dns_resolver_1
+
+    - name: Peg DNS-resolver på 8.8.8.8 i stedet for Hetzners egen
+      ansible.builtin.replace:
+        path: /etc/netplan/50-cloud-init.yaml
+        regexp: '- 2a01:4ff:ff00::add:1'
+        replace: "- 8.8.8.8"
+      register: dns_resolver_2
+
+    - name: Anvend netplan hvis DNS-resolveren blev ændret
+      ansible.builtin.command: netplan apply
+      when: dns_resolver_1.changed or dns_resolver_2.changed
+
     - name: Opret /etc/rancher/k3s
       ansible.builtin.file:
         path: /etc/rancher/k3s

@@ -106,6 +106,12 @@ ligger deklarativt i `ansible/templates/k3s-config.yaml.j2`, som templates til
 `/etc/rancher/k3s/config.yaml` på serveren — det er den mekanisme k3s selv
 tilbyder til konfiguration, i stedet for CLI-flags gemt i et install-script.
 
+Playbooken retter også serverens DNS-resolver til `1.1.1.1`/`8.8.8.8` (i
+stedet for Hetzners egne, som cloud-init sætter som standard) — Hetzners
+resolver viste sig at tage 20+ minutter om at fange helt nye DNS-records,
+hvilket blokerer cert-manager's HTTP-01 self-check for enhver ny
+app/subdomæne.
+
 ### Forudsætninger
 
 - Ansible installeret lokalt
