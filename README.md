@@ -134,12 +134,30 @@ Playbooken:
 4. Henter kubeconfig til `kubeconfig.yml` i roden af projektet (peger på
    `127.0.0.1:6443` — se afsnittet om SSH-tunnel ovenfor)
 5. Verificerer at k3s kører med `kubectl get nodes`
+6. Verificerer at secrets-encryption er aktiv og reencrypter eksisterende
+   secrets (se afsnittet nedenfor)
 
 ### Opgrader k3s
 
 Bump `k3s_version` i `ansible/group_vars/all/vars.yml` og kør playbooken igen.
 Install-scriptet fra `get.k3s.io` er idempotent og opgraderer et eksisterende
 k3s in-place.
+
+### Secrets-encryption
+
+`Secret`-objekter er som udgangspunkt kun base64 i k3s' datastore, ikke
+krypteret. `secrets-encryption: true` i `k3s-config.yaml.j2` slår k3s' egen
+kryptering til — k3s genererer og styrer selv nøglen, ingen ekstern
+tooling (Vault, Sealed Secrets) nødvendig.
+
+Secrets oprettet *før* denne indstilling blev slået til (fx cert-manager's
+TLS-certifikater) forbliver ukrypterede indtil de skrives om — playbooken
+kører derfor `k3s secrets-encrypt reencrypt --force` hver gang, hvilket er
+idempotent. Verificér status manuelt med:
+
+```bash
+ssh root@65.109.233.92 k3s secrets-encrypt status
+```
 
 ## Platform-lag (ingress-nginx + cert-manager)
 

@@ -89,3 +89,22 @@
     - name: Vis k3s nodes
       ansible.builtin.debug:
         msg: "{{ nodes_result.stdout_lines }}"
+
+    - name: Verificér at secrets-encryption er aktiv
+      ansible.builtin.command:
+        cmd: k3s secrets-encrypt status
+      register: secrets_encrypt_status
+      changed_when: false
+
+    - name: Vis secrets-encryption status
+      ansible.builtin.debug:
+        msg: "{{ secrets_encrypt_status.stdout_lines }}"
+
+    # Secrets oprettet før secrets-encryption blev slået til (fx cert-manager's
+    # TLS-secrets) ligger stadig ukrypteret i datastoren indtil de skrives om.
+    # reencrypt læser og genskriver samtlige secrets i clusteret, hvorved de
+    # bliver krypteret med den nu aktive nøgle. Idempotent at genkøre.
+    - name: Reencrypt eksisterende secrets
+      ansible.builtin.command:
+        cmd: k3s secrets-encrypt reencrypt --force
+      changed_when: false

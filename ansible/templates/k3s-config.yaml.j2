@@ -7,9 +7,14 @@
 #   if this ever changes (e.g. after a server_type change).
 # node-ip: advertise the private IP as the node address
 # tls-san: add the public IPv4 to the k3s API server certificate so kubectl can connect from outside
+# secrets-encryption: encrypt Secret objects at rest in the datastore (they are
+#   plain base64 otherwise). k3s generates and manages the encryption key itself.
+#   Existing secrets created before this was enabled need an explicit
+#   `k3s secrets-encrypt reencrypt` to actually get encrypted (see infra.yml).
 disable:
   - traefik
 flannel-iface: enp7s0
 node-ip: "{{ k3s_node_ip }}"
 tls-san:
   - "{{ ansible_host }}"
+secrets-encryption: true
