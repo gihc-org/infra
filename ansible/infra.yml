@@ -44,11 +44,21 @@
         src: templates/k3s-config.yaml.j2
         dest: /etc/rancher/k3s/config.yaml
         mode: "0644"
+      register: k3s_config
 
     - name: Installer eller opgrader k3s
       ansible.builtin.shell: curl -sfL https://get.k3s.io | sh -s -
       environment:
         INSTALL_K3S_VERSION: "{{ '' if k3s_version == 'latest' else k3s_version }}"
+
+    # Install-scriptet genstarter kun k3s ved en reel version-ændring — en
+    # rent config-only ændring (som secrets-encryption) bliver ellers skrevet
+    # til disk uden nogensinde at blive indlæst.
+    - name: Genstart k3s hvis config.yaml er ændret
+      ansible.builtin.systemd:
+        name: k3s
+        state: restarted
+      when: k3s_config.changed
 
     - name: Vent på at k3s er klar
       ansible.builtin.wait_for:
