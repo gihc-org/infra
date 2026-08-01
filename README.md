@@ -8,6 +8,8 @@ og k3s-opsætning via Ansible.
 ```
 infra/
 ├── ansible.cfg             # skal ligge i repo-roden — Ansible leder kun efter config i CWD
+├── MIGRATION.md            # tilstandsrapport og forslag forud for app-migration (Fase 4)
+├── docs/adr/               # repo-lokale ADR'er (arkitekturbeslutninger)
 ├── tofu/                   # OpenTofu — Hetzner VPS, netværk, firewall, SSH-nøgle, platform-lag
 │   ├── versions.tf
 │   ├── variables.tf
@@ -159,6 +161,29 @@ idempotent. Verificér status manuelt med:
 ssh root@65.109.233.92 k3s secrets-encrypt status
 ```
 
+## Secrets-konvention for apps
+
+Platformen har én enkel konvention for app-hemmeligheder (JWT-nøgler,
+databasekodeord, API-nøgler mv.):
+
+- Hemmeligheder opbevares i `pass` — aldrig i git.
+- De oprettes imperativt i clusteret, én `Secret` per app per miljø:
+
+  ```bash
+  kubectl create secret generic <app>-secrets -n <namespace> \
+    --from-literal=jwt-secret=$(pass <sti>) \
+    --from-literal=postgres-password=$(pass <sti>)
+  ```
+
+- Manifesterne i app-repos' `k8s/`-mapper refererer blot secret-navnet og
+  nøglerne (`secretKeyRef`) — ingen værdier.
+- Brug én secret per miljø (test/beta/prod), ikke delte værdier på tværs af
+  miljøer.
+- Da secrets-encryption er slået til (se ovenfor), ligger værdierne krypteret
+  i k3s' datastore. Ingen ekstern tooling (Vault, Sealed Secrets) er
+  nødvendig på dette niveau; kan tilføjes senere hvis secrets skal kunne
+  ligge krypteret i git.
+
 ## Platform-lag (ingress-nginx + cert-manager)
 
 `tofu/platform.tf` installerer ingress-controller og cert-manager via Helm,
@@ -180,6 +205,15 @@ tofu apply
 k3s' indbyggede ServiceLB (Klipper) — kun `traefik` er disabled, ikke
 `servicelb` — gør at ingress-nginx' `LoadBalancer`-service automatisk bindes
 til node'ens offentlige IP på port 80/443, uden custom values.
+
+Ingress-nginx sætter desuden globale security headers på alle svar via
+ConfigMap'en `global-security-headers` (`X-Content-Type-Options: nosniff`,
+`X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`),
+og `Server`-versionsheaderen er skjult — samme basis som platform-Caddy satte
+i sin tid. CSP og Permissions-Policy sættes bevidst per app som
+ingress-annotations: CSP peger på appens eget API-domæne, og
+Permissions-Policy varierer (chat-frontenden bruger fx kamera/mikrofon til
+WebRTC, mens rene API'er kan køre med tomme værdier).
 
 ## VPS
 

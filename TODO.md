@@ -46,19 +46,26 @@ via SSH-tunnel) og Hetzner-backups slået til på serveren — se
 
 ## Fase 4 — Migrer projekter
 
-Platformen kan hoste en simpel stateless app allerede nu (bevist af
-test-echo-demoen i `platform.tf`), men to ting er ikke afklaret for
-`ipfs-apps`/`capture` endnu:
+Detaljerede planer ligger i app-reposne (`../ipfs-apps/MIGRATION.md`; capture
+har allerede test-miljøet kørende på k3s) samt i `MIGRATION.md` i dette repo
+(tilstandsrapport 2026-08-01). Bemærk: der er ingen data at migrere — den
+gamle server blev slettet før clusteret blev bygget, så migrationen er reelt
+en frisk deploy.
 
-- [ ] Secrets-strategi i k8s (i dag: `ansible-vault`-krypterede `.env`-filer
-      til Docker Compose — skal erstattes af noget k8s-nativt, fx almindelige
-      `Secret`-objekter oprettet via Ansible/CI, eller Sealed Secrets)
-- [ ] Container-image-strategi (hvor bygges/gemmes images — Docker Hub, GHCR,
-      privat registry med `imagePullSecrets`?)
-- [ ] Afklar hvilke projekter der kører (`ipfs-apps`, `capture` — flere?)
-- [ ] `ipfs-apps`: opret `Namespace`, `Deployment`, `Service`, `Ingress`
-- [ ] `capture`: opret `Namespace`, `Deployment`, `Service`, `Ingress`
-- [ ] Verificér at eksisterende domæner virker efter migration
+- [x] Secrets-strategi i k8s — konvention dokumenteret i README
+      ("Secrets-konvention for apps"): `pass` + imperativ `kubectl create
+      secret` per miljø, intet i git
+- [x] Container-image-strategi — GHCR (public packages) + GitHub Actions,
+      mønster etableret via hyfer og capture
+- [x] Afklar hvilke projekter der kører — `ipfs-apps`, `capture` og `hyfer`
+      (sidstnævnte allerede migreret)
+- [x] Globale security headers i ingress-nginx (`global-security-headers`
+      ConfigMap i `tofu/platform.tf`) — CSP og Permissions-Policy per app
+- [x] Firewall åbnet til coturn (TCP+UDP 3478, UDP 49152–49200) —
+      forudsætning for ipfs-apps' WebRTC
+- [ ] `capture`: færdiggør prod/beta (test kører på capture.test.gihc.online)
+- [ ] `ipfs-apps`: følg `../ipfs-apps/MIGRATION.md` (tag beslutningerne om
+      IPFS, domæneskema m.m. først)
 
 Dynamisk volume-provisionering er allerede på plads (k3s' indbyggede
 `local-path-provisioner` kører).
@@ -68,7 +75,10 @@ server de kørte på er slettet).
 
 ---
 
-## ADRs der mangler at blive skrevet
+## ADR'er
 
-- [ ] ADR: k3s frem for Docker Compose (arkitektonisk valg med alternativer overvejet)
-- [ ] ADR: OpenTofu/Ansible/Helm lag-inddeling (påvirker alle fremtidige projekter)
+- [x] ADR 0001: k3s frem for Docker Compose — `docs/adr/0001-k3s-frem-for-docker-compose.md`
+- [x] ADR 0002: OpenTofu/Ansible/app-manifester lag-inddeling — `docs/adr/0002-laginddeling-tofu-ansible-apps.md`
+
+Repo-lokale ADR'er i `docs/adr/` (ikke det delte ADR-repo) — beslutningerne
+hører til dette projekt.

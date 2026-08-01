@@ -1,6 +1,6 @@
 # Migration af `capture` og `ipfs-apps` til k3s — tilstandsrapport og forslag
 
-Udarbejdet 2026-07-25 på baggrund af gennemgang af `../capture`, `../ipfs-apps`
+Udarbejdet 2026-08-01 på baggrund af gennemgang af `../capture`, `../ipfs-apps`
 og dette repo, samt live-tjek af de kørende domæner.
 
 ## Status pr. projekt
@@ -11,7 +11,7 @@ Migrationen er allerede påbegyndt i repoet:
 
 - `k8s/`-manifester (namespace, PVC, deployment, service, ingress) findes for
   test, og `https://capture.test.gihc.online` svarer 200 med gyldigt
-  Let's Encrypt-certifikat (verificeret 2026-07-25).
+  Let's Encrypt-certifikat (verificeret 2026-08-01).
 - GitHub Actions → GHCR-workflow (`ghcr.io/gihc-org/capture:latest`) og
   DNS-script mod Simply.com (`scripts/create-dns-record.sh`) er på plads.
 - Hemmeligheder: kun `JWT_SECRET` er reelt hemmelig. Strategi er besluttet:
@@ -48,7 +48,7 @@ Miljøer/domæner i dag: `api.gihc.online` + `chat.apps.gihc.online` (prod),
 
 Den gamle server blev slettet 2026-07-04 (clean slate, se
 `referater/2026-07-04-12-00.md`), før det nye cluster blev bygget, og
-Hetzner-backups blev først slået til bagefter. Live-tjek 2026-07-25 bekræfter:
+Hetzner-backups blev først slået til bagefter. Live-tjek 2026-08-01 bekræfter:
 `notes.apps.gihc.online`, `api.gihc.online` og `chat.apps.gihc.online` svarer
 alle med ingress-nginx' standard fake-certifikat — DNS peger stadig på
 serveren, men der er intet bagved.
