@@ -119,6 +119,32 @@ resource "hcloud_firewall" "platform" {
     source_ips = ["0.0.0.0/0", "::/0"]
   }
 
+  # TURN (coturn) — WebRTC relay for ipfs-apps. Cannot sit behind
+  # ingress-nginx (plain TCP/UDP), so the ports are opened directly here.
+  # coturn will run as a hostNetwork pod in k3s (see MIGRATION.md in the
+  # ipfs-apps repo). TURN over TCP + UDP:
+  rule {
+    direction  = "in"
+    protocol   = "tcp"
+    port       = "3478"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
+
+  rule {
+    direction  = "in"
+    protocol   = "udp"
+    port       = "3478"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
+
+  # TURN relay ports (UDP) — the range coturn allocates relay candidates from
+  rule {
+    direction  = "in"
+    protocol   = "udp"
+    port       = "49152-49200"
+    source_ips = ["0.0.0.0/0", "::/0"]
+  }
+
   # The k3s API server (6443) is intentionally NOT exposed publicly here.
   # Cluster-admin credentials over the internet is unnecessary attack surface
   # for a project that has exactly one operator. Reach it instead through an

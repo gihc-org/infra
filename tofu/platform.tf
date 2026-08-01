@@ -22,6 +22,39 @@ resource "helm_release" "ingress_nginx" {
   chart            = "ingress-nginx"
   namespace        = "ingress-nginx"
   create_namespace = true
+
+  # Skjul nginx-versionsheaderen på alle svar (svarer til Caddys `-Server`)
+  set {
+    name  = "controller.config.enable-server-tokens"
+    value = "false"
+  }
+
+  # Tilføj de globale security headers (ConfigMap nedenfor) på alle svar
+  set {
+    name  = "controller.config.add-headers"
+    value = "ingress-nginx/global-security-headers"
+  }
+}
+
+# Globale security headers — svarer til det platform-Caddy tidligere satte på
+# hvert site. CSP og Permissions-Policy sættes bevidst IKKE globalt: CSP er
+# per-app (peger på appens eget API-domæne), og Permissions-Policy adskiller
+# sig pr. app (chat-frontenden skal fx kunne bruge kamera/mikrofon til WebRTC,
+# mens API'erne kørte med camera=(), microphone=()).
+resource "kubectl_manifest" "global_security_headers" {
+  yaml_body = <<-YAML
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: global-security-headers
+      namespace: ingress-nginx
+    data:
+      X-Content-Type-Options: "nosniff"
+      X-Frame-Options: "DENY"
+      Referrer-Policy: "strict-origin-when-cross-origin"
+  YAML
+
+  depends_on = [helm_release.ingress_nginx]
 }
 
 # ── cert-manager ─────────────────────────────────────────────────────────────
