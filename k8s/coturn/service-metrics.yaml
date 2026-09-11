@@ -1,0 +1,26 @@
+# Prometheus-metrics fra coturn (--prometheus-port=9641).
+#
+# Pod'en kører hostNetwork, så endepunktet er nodens IP:9641. Porten er til
+# gengæld ikke åbnet i Hetzner-firewall'en, så metrics kan kun hentes fra noden
+# eller inde fra clusteret:
+#
+#   curl -s http://coturn-metrics.coturn.svc.cluster.local:9641/metrics
+#
+# Der er endnu ingen scraper i clusteret — servicen findes, så en senere
+# Prometheus/Grafana-opsætning kan pege på den uden ændringer her (ADR 0003).
+apiVersion: v1
+kind: Service
+metadata:
+  name: coturn-metrics
+  namespace: coturn
+  labels:
+    app: coturn
+spec:
+  type: ClusterIP
+  selector:
+    app: coturn
+  ports:
+    - name: metrics
+      port: 9641
+      targetPort: 9641
+      protocol: TCP

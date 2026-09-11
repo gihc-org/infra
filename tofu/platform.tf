@@ -204,3 +204,42 @@ resource "kubectl_manifest" "test_echo_ingress" {
     kubectl_manifest.test_echo_service,
   ]
 }
+
+# ── Delt TURN (coturn) ───────────────────────────────────────────────────────
+#
+# TURN er platform-infrastruktur, ikke app-logik: der kan kun køre én coturn på
+# noden — to instanser binder begge 3478 via SO_REUSEPORT og fordeler derefter
+# trafikken tilfældigt mellem sig (sporadiske 401'ere og timeouts i stedet for
+# en tydelig fejl). Se docs/adr/0003-delt-turn-platform.md.
+#
+# Manifesterne ligger i k8s/coturn/ og læses herfra, så coturn er OpenTofu-ejet
+# (platform-laget, jf. ADR 0002), men samtidig kan læses og kommenteres som
+# rigtige filer. Deployment'et er et template, fordi realm og external-ip
+# kommer fra konfigurationen (realm fra variables.tf, IP'en fra serveren).
+#
+# Secret'en (coturn-secret) oprettes IKKE her: den er en hemmelighed og hører i
+# `pass`, oprettet imperativt af scripts/deploy-coturn.sh — samme konvention som
+# app-hemmeligheder (se README). Derfor venter Deployment'et heller ikke på
+# rollout ved apply; scriptet kører secret + rollout status bagefter.
+
+resource "kubectl_manifest" "coturn_namespace" {
+  yaml_body = file("${path.module}/../k8s/coturn/namespace.yaml")
+}
+
+resource "kubectl_manifest" "coturn_deployment" {
+  yaml_body = templatefile("${path.module}/../k8s/coturn/deployment.yaml.tftpl", {
+    image       = var.coturn_image
+    realm       = var.coturn_realm
+    external_ip = hcloud_server.platform.ipv4_address
+  })
+
+  wait_for_rollout = false
+
+  depends_on = [kubectl_manifest.coturn_namespace]
+}
+
+resource "kubectl_manifest" "coturn_metrics_service" {
+  yaml_body = file("${path.module}/../k8s/coturn/service-metrics.yaml")
+
+  depends_on = [kubectl_manifest.coturn_namespace]
+}

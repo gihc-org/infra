@@ -1,0 +1,8 @@
+# TURN er en delt platform-tjeneste (ADR 0003), ikke app-logik: der kan kun
+# køre én coturn på noden, fordi to instanser deler 3478 via SO_REUSEPORT og
+# dermed fordeler trafikken tilfældigt. Namespace'et er derfor ejet af
+# platform-laget, ikke af en app.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: coturn

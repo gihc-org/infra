@@ -70,6 +70,13 @@ Kun ét punkt er reelt blokerende:
    `hcloud_firewall.platform`. coturn kan ikke ligge bag ingress-nginx; på
    single-node er `hostNetwork: true`-pod den simple løsning.
 
+   **Opdateret 2026-09-12:** reglerne er lagt ind (åbne siden 2026-08-01), og
+   coturn er flyttet ud af appen til platform-laget som én delt tjeneste på
+   `turn.gihc.online` (namespace `coturn`) — se
+   [docs/adr/0003-delt-turn-platform.md](docs/adr/0003-delt-turn-platform.md)
+   og `referater/2026-09-12-01-06.md`. Beskrivelsen ovenfor er den historiske
+   tilstand pr. 2026-08-01.
+
 2. **Security headers — beslutning om placering.** Begge apps fik headers
    (nosniff, frame-deny, referrer-policy, CSP) fra Caddy. To veje:
    - Globalt: basis-headers via ingress-nginx' ConfigMap i `tofu/platform.tf`

@@ -46,3 +46,21 @@ variable "subnet_ip_range" {
   default     = "10.0.1.0/24"
   description = "IP range for the subnet"
 }
+
+# Image til den delte coturn-instans (se docs/adr/0003-delt-turn-platform.md).
+# Pinnet med BÅDE tag og digest: et deploy skal give præcis den samme binære
+# coturn, uanset hvornår det køres. Digest'en er Docker Hubs manifest-list-
+# digest og dækker linux/amd64 (nodens arkitektur).
+variable "coturn_image" {
+  type        = string
+  default     = "coturn/coturn:4.18.0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3"
+  description = "coturn-image (tag + digest) til platform-Deployment'et"
+}
+
+# Realm for den delte TURN-tjeneste. Klienterne forbinder til dette navn, og
+# coturn bruger det i HMAC-credentials — præcis som i appens config.js.
+variable "coturn_realm" {
+  type        = string
+  default     = "turn.gihc.online"
+  description = "TURN-realm (det domæne klienterne forbinder til)"
+}

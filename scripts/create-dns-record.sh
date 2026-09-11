@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Opretter en A-record hos Simply.com for et platform-navn, så navnet peger på
+# k3s-noden. Idempotent — springer over hvis recorden findes.
+#
+# Brug:
+#   ./scripts/create-dns-record.sh            # turn.gihc.online (delt TURN)
+#   ./scripts/create-dns-record.sh turn       # samme
+#
+# Navnet er platformens (ADR 0003); app-specifikke records hører i app-repoet
+# (fx `../ipfs-apps/scripts/create-dns-record.sh` for loft.*-domænerne).
+#
+# Credentials hentes fra `pass` (samme mønster som capture):
+#   pass insert simply/account
+#   pass insert simply/api-key
+
+DOMAIN="gihc.online"
+RECORD_NAME="${1:-turn}"
+
+# Nodens offentlige IP. Kan overstyres med VPS_IP, og kan altid slås op som
+# `tofu -chdir=tofu output -raw server_ipv4`.
+VPS_IP="${VPS_IP:-65.109.233.92}"
+
+SIMPLY_ACCOUNT="$(pass simply/account)"
+SIMPLY_API_KEY="$(pass simply/api-key)"
+
+API_URL="https://api.simply.com/2/my/products/${DOMAIN}/dns/records/"
+
+echo "==> Henter DNS records for ${DOMAIN}..."
+RECORDS=$(curl -sf -u "${SIMPLY_ACCOUNT}:${SIMPLY_API_KEY}" "${API_URL}")
+
+EXISTS=$(RECORD_NAME="$RECORD_NAME" python3 -c '
+import json, os, sys
+records = json.load(sys.stdin).get("records", [])
+name = os.environ["RECORD_NAME"]
+print("yes" if any(r.get("type") == "A" and r.get("name") == name for r in records) else "no")
+' <<<"$RECORDS")
+
+if [ "$EXISTS" = "yes" ]; then
+    echo "==> A-record for ${RECORD_NAME}.${DOMAIN} findes allerede, springer over."
+    exit 0
+fi
+
+echo "==> Opretter A-record ${RECORD_NAME}.${DOMAIN} -> ${VPS_IP}..."
+curl -sf -u "${SIMPLY_ACCOUNT}:${SIMPLY_API_KEY}" \
+    -X POST "${API_URL}" \
+    -H "Content-Type: application/json" \
+    -d "{\"type\":\"A\",\"name\":\"${RECORD_NAME}\",\"data\":\"${VPS_IP}\",\"ttl\":3600}" \
+    -o /dev/null
+
+echo "==> Oprettet."

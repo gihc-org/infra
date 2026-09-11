@@ -10,6 +10,8 @@ infra/
 ├── ansible.cfg             # skal ligge i repo-roden — Ansible leder kun efter config i CWD
 ├── MIGRATION.md            # tilstandsrapport og forslag forud for app-migration (Fase 4)
 ├── docs/adr/               # repo-lokale ADR'er (arkitekturbeslutninger)
+├── k8s/coturn/             # manifester for den delte TURN-tjeneste (applies af tofu/platform.tf)
+├── scripts/                # deploy/verifikation: coturn, TURN-config, DNS-record
 ├── tofu/                   # OpenTofu — Hetzner VPS, netværk, firewall, SSH-nøgle, platform-lag
 │   ├── versions.tf
 │   ├── variables.tf
@@ -184,6 +186,10 @@ databasekodeord, API-nøgler mv.):
   nødvendig på dette niveau; kan tilføjes senere hvis secrets skal kunne
   ligge krypteret i git.
 
+Platformens egne hemmeligheder følger samme mønster — fx lever
+`pass turn/static-auth-secret` videre til Secret'en `coturn-secret` i namespace
+`coturn` via `scripts/deploy-coturn.sh` (se afsnittet om delt TURN nedenfor).
+
 ## Platform-lag (ingress-nginx + cert-manager)
 
 `tofu/platform.tf` installerer ingress-controller og cert-manager via Helm,
@@ -214,6 +220,37 @@ i sin tid. CSP og Permissions-Policy sættes bevidst per app som
 ingress-annotations: CSP peger på appens eget API-domæne, og
 Permissions-Policy varierer (chat-frontenden bruger fx kamera/mikrofon til
 WebRTC, mens rene API'er kan køre med tomme værdier).
+
+## Delt TURN (coturn)
+
+TURN er en delt platform-tjeneste, ikke app-logik: der kan kun køre én coturn på
+noden — to instanser binder begge 3478 via `SO_REUSEPORT` og fordeler derefter
+trafikken tilfældigt mellem sig. Baggrund og konsekvenser:
+[docs/adr/0003-delt-turn-platform.md](docs/adr/0003-delt-turn-platform.md).
+
+Manifestet ligger i [k8s/coturn/](k8s/coturn/README.md) og applieres af
+`tofu/platform.tf`; hemmeligheden ligger i `pass` som `turn/static-auth-secret`
+og oprettes som `Secret` imperativt (samme konvention som app-hemmeligheder).
+
+| | |
+|---|---|
+| Domæne | `turn.gihc.online` (A → 65.109.233.92) |
+| Namespace | `coturn` |
+| Porte | TCP+UDP 3478, UDP 49152–49200 (firewall i `tofu/main.tf`) |
+| Metrics | `:9641/metrics` på noden samt ClusterIP-servicen `coturn-metrics` |
+
+```bash
+ssh -L 6443:localhost:6443 -N -f hetzner-k3s
+
+./scripts/deploy-coturn.sh            # pass-secret → tofu apply → Secret → rollout
+./scripts/check-turn.sh               # STUN + relay-allokering + negativt tjek
+./scripts/create-dns-record.sh turn   # A-record hos Simply.com (idempotent)
+./scripts/turn-config.sh --config-js  # de linjer en app skal bruge i config.js
+```
+
+Appene peger på `turn:turn.gihc.online:3478?transport=udp` og har ingen egen
+coturn-instans. Kvoterne (`--total-quota`, relay-portintervallet) er delte på
+tværs af apps og skal hæves, når der kommer flere brugere eller apps.
 
 ## VPS
 

@@ -119,10 +119,11 @@ resource "hcloud_firewall" "platform" {
     source_ips = ["0.0.0.0/0", "::/0"]
   }
 
-  # TURN (coturn) — WebRTC relay for ipfs-apps. Cannot sit behind
-  # ingress-nginx (plain TCP/UDP), so the ports are opened directly here.
-  # coturn will run as a hostNetwork pod in k3s (see MIGRATION.md in the
-  # ipfs-apps repo). TURN over TCP + UDP:
+  # TURN (coturn) — WebRTC relay for all apps on the node. TURN is a shared
+  # platform service (docs/adr/0003-delt-turn-platform.md): only one instance
+  # can bind 3478, and it cannot sit behind ingress-nginx (plain TCP/UDP), so
+  # the ports are opened directly here. coturn runs as a hostNetwork pod in
+  # the `coturn` namespace (tofu/platform.tf + k8s/coturn/). TURN over TCP+UDP:
   rule {
     direction  = "in"
     protocol   = "tcp"
