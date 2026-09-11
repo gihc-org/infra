@@ -75,6 +75,91 @@ server de kørte på er slettet).
 
 ---
 
+## Platform — delt TURN (coturn)
+
+Beslutning 2026-09-11 (option B): TURN flyttes ud af `ipfs-apps` og ind i
+platform-laget. Baggrunden er konkret: der er kun én node med én IP, og
+`coturn` med `hostNetwork` kan kun binde 3478 én gang. Et forsøg med to
+instanser viste at begge *starter* (coturn sætter `SO_REUSEPORT`), hvorefter
+kernen fordeler UDP-datagrammerne mellem dem — altså tilfældige 401'ere og
+timeouts i stedet for en tydelig fejl. To WebRTC-apps kan derfor ikke have
+hver sin coturn på denne node.
+
+Det erstatter beslutningen fra `referater/2026-08-01.md` ("coturn beholdes i
+ipfs-apps") og følger samme mønster som [ADR 0019](../adrs/0019-shared-caddy-platform-layer.md):
+når kun én proces kan binde ressourcen, flyttes den til platformen, og hver
+app ejer kun sin egen konfiguration.
+
+- [ ] ADR 0003 i `docs/adr/`: delt TURN i platform-laget (erstatter
+      2026-08-01-beslutningen)
+- [ ] Ejer-model afklaret: manifestet ligger i `tofu/platform.tf` (jf. ADR
+      0002's platform-række) eller i en `k8s/`-mappe i dette repo læst med
+      `kubectl_file_documents`/`file()` — så coturn stadig er OpenTofu-ejet
+- [ ] Namespace `coturn` + Deployment: `hostNetwork`, pinnet image-tag,
+      `--denied-peer-ip` for RFC1918/loopback/link-local/CGNAT/IPv6, kvoter
+      (`--max-bps`, `--bps-capacity`, `--user-quota`, `--total-quota`,
+      `--stale-nonce`), og hærdningen fra ipfs-apps (non-root 65534,
+      read-only rootfs, no_new_privs, `drop: ["ALL"]` +
+      `add: ["NET_BIND_SERVICE"]`)
+- [ ] Secret i `pass` (fx `turn/static-auth-secret`) som **eneste** kilde;
+      rendres til coturns config og til hver apps `config.js` ved deploy, så
+      værdien ikke kan drive mellem kopier. Værdien er reelt offentlig (den
+      udleveres til browseren) — beskyttelsen er kvoter + `--denied-peer-ip`
+- [ ] DNS `turn.gihc.online` → serverens IP (samme mønster som
+      `scripts/create-dns-record.sh` i ipfs-apps; overvej at flytte scriptet
+      hertil, nu hvor navnet er platformens)
+- [ ] Firewall-kommentaren i `tofu/main.tf` gøres app-uafhængig (i dag står
+      der "WebRTC relay for ipfs-apps")
+- [ ] `scripts/check-turn.sh`: STUN-binding + relay-only allocation med
+      HMAC-credentials, så platformen kan verificeres uden en app
+- [ ] Overvågning/metrics for coturn (flyttet hertil fra ipfs-apps' TODO)
+- [ ] Verificér at `ipfs-apps`' TURN-relay-test stadig er grøn mod den delte
+      instans, efter app-manifesterne er ryddet
+
+### Start-prompt til ny session
+
+Kopér blokken herunder som første besked til agenten:
+
+> Fortsæt på **platform-laget i `infra`**: flyt coturn (TURN) ud af
+> `ipfs-apps` og ind som en delt platform-tjeneste i namespace `coturn`.
+>
+> Læs først `TODO.md` (afsnittet "Platform — delt TURN"), `MIGRATION.md`,
+> `docs/adr/0002-laginddeling-tofu-ansible-apps.md` og
+> `../adrs/0019-shared-caddy-platform-layer.md`. Baggrunden i `ipfs-apps`:
+> `referater/2026-09-11-23-04.md` og `MIGRATION.md`.
+>
+> Beslutningen er taget (option B, 2026-09-11): TURN er platform-infrastruktur,
+> ikke app-logik, og der kan kun køre én coturn på noden — to instanser binder
+> begge 3478 via `SO_REUSEPORT` og deler trafikken tilfældigt.
+>
+> Tilstand i `ipfs-apps`: coturn kører i `loft-test` med hærdet konfiguration
+> (non-root 65534, read-only rootfs, no_new_privs, `drop: ["ALL"]` +
+> `add: ["NET_BIND_SERVICE"]`), `--denied-peer-ip` for private/loopback/
+> link-local/CGNAT og kvoter. Relevante filer: `k8s/test/deployment-coturn.yaml`
+> (args + securityContext + kommentarer om hvorfor) og
+> `k8s/test/configmap.yaml` (`config.js`, `turn-secret`, `realm`,
+> `external-ip`). TURN-relay-testen ligger i `e2e/tests/turn.spec.ts`.
+>
+> Næste skridt: skriv ADR 0003, flyt manifestet til platformen (namespace
+> `coturn`), læg secret'et i `pass` som eneste kilde, opret
+> `turn.gihc.online` (A-record), gør firewall-kommentaren app-uafhængig, og
+> verifikér med en ny `scripts/check-turn.sh`. Derefter: sørg for at
+> `ipfs-apps` peger på `turn:turn.gihc.online:3478?transport=udp` og fjerner
+> sin egen coturn fra `k8s/test` og `k8s/prod`.
+>
+> Kommandoer og adgang: k3s-API'et er ikke eksponeret, så SSH-tunnelen skal
+> være åben (`ssh -L 6443:localhost:6443 -N -f hetzner-k3s`),
+> `export KUBECONFIG=~/projects/infra/kubeconfig.yml`. Platform-laget kører
+> `cd tofu && direnv allow && tofu plan` → `tofu apply`. Rækkefølgen ved
+> ændringer er cloud (`main.tf`) → ansible (k3s) → platform
+> (`platform.tf`).
+>
+> Gotchas: `infra`-repoet er ikke i agentens skrive-sandkasse — spørg før
+> filer ændres uden for `ipfs-apps`. `pass` og SSH-nøgler virker via
+> GNOME-keyring-agenten (`SSH_AUTH_SOCK=/run/user/1000/gcr/ssh`). TURN-portene
+> (TCP+UDP 3478, UDP 49152–49200) står allerede åbne i `platform-firewall`.
+> ADR'er ligger repo-lokalt i `docs/adr/`.
+
 ## ADR'er
 
 - [x] ADR 0001: k3s frem for Docker Compose — `docs/adr/0001-k3s-frem-for-docker-compose.md`
