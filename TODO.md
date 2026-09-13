@@ -1,5 +1,51 @@
 # TODO
 
+## Start-prompt til ny session
+
+Kopér blokken herunder som første besked til agenten:
+
+> Fortsæt på **platform-laget i `infra`**. Fase 2–4 er i drift: én k3s-node
+> (65.109.233.92) med ingress-nginx, cert-manager, globale security headers,
+> delt TURN (`turn.gihc.online`, namespace `coturn`, ADR 0003) og testmiljøer
+> for hyfer/capture/loft. Der er ikke noget akut blokerende — vælg den næste
+> opgave fra listen nedenfor.
+>
+> Læs først `README.md`, `TODO.md`, `MIGRATION.md` og ADR'erne i `docs/adr/`
+> (0001 k3s, 0002 lag-inddeling, 0003 delt TURN). Referaterne i `referater/`
+> forklarer hvordan tilstanden blev nået — særligt
+> `referater/2026-09-12-01-06.md` (TURN-flytningen).
+>
+> Åbne opgaver (i den rækkefølge jeg ville tage dem):
+> 1. `capture`: færdiggør prod/beta (test kører på `capture.test.gihc.online`).
+> 2. Woodpecker CI på Raspberry Pi'en (afsnittet øverst i denne fil) — fjerner
+>    de manuelle `tofu apply`/Ansible-trin for alle tre repos.
+> 3. Scraper på coturn-metrics (`coturn-metrics:9641`) når der kommer en
+>    monitoring-stack; endpointet er verificeret, men indsamles ikke endnu.
+> 4. Støtte til `ipfs-apps`' prod-deploy (`loft.gihc.online`) hvis app-siden
+>    beder om det — firewall, DNS-mønster og TURN er allerede på plads.
+>    App-sidens åbne punkter (bl.a. lyd-routing på telefoner) står i
+>    `../ipfs-apps/TODO.md` og hører ikke til her.
+>
+> Kommandoer og adgang: k3s-API'et er ikke eksponeret, så SSH-tunnelen skal
+> være åben — brug keepalive, den dør i stilhed efter et stykke tid:
+> `ssh -o ServerAliveInterval=20 -L 6443:localhost:6443 -N -f hetzner-k3s`
+> og `export KUBECONFIG=~/projects/infra/kubeconfig.yml`. Platform-laget kører
+> `cd tofu && direnv allow && tofu plan` → `tofu apply` (kræver
+> `HCLOUD_TOKEN`/`AWS_*` fra `pass`, som `.envrc` henter).
+> Rækkefølgen ved ændringer er cloud (`main.tf`) → ansible (k3s) → platform
+> (`platform.tf`). `pass` og SSH-nøgler virker via GNOME-keyring-agenten
+> (`SSH_AUTH_SOCK=/run/user/1000/gcr/ssh` — den socket sandkassen ikke kan nå).
+>
+> Gotchas: k3s/pass/SSH og alt netværk ud af maskinen kræver eskaleret kørsel
+> (sandkassen blokerer også `127.0.0.1:6443`); `tofu apply` i `platform.tf`
+> fejler med TLS-timeout, hvis tunnelen er død — tjek `ss -ltn | grep 6443`
+> først. `templatefile` evaluerer også kommentarer, så `${...}` i en kommentar
+> vælter planen. `coturn` sætter `SO_REUSEPORT`: to instanser på noden fejler
+> ikke, de deler trafikken tilfældigt. Nye DNS-records kræver
+> `sudo resolvectl flush-caches` lokalt (systemd-resolved cacher negative svar
+> i SOA-minimum). Læg ALDRIG hemmeligheder i git eller state — brug `pass` og
+> den imperative secret-konvention i README.
+
 ## Woodpecker CI — opsætning på Raspberry Pi
 
 Woodpecker giver automatisk deploy ved push til trunk på tværs af alle projekter
