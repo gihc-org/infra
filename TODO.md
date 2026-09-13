@@ -62,10 +62,14 @@ en frisk deploy.
 - [x] Globale security headers i ingress-nginx (`global-security-headers`
       ConfigMap i `tofu/platform.tf`) — CSP og Permissions-Policy per app
 - [x] Firewall åbnet til coturn (TCP+UDP 3478, UDP 49152–49200) —
-      forudsætning for ipfs-apps' WebRTC
+      forudsætning for WebRTC. Portene er ikke app-specifikke: de hører nu til
+      den delte TURN-tjeneste (se afsnittet "Platform — delt TURN (coturn)")
 - [ ] `capture`: færdiggør prod/beta (test kører på capture.test.gihc.online)
-- [ ] `ipfs-apps`: følg `../ipfs-apps/MIGRATION.md` (tag beslutningerne om
-      IPFS, domæneskema m.m. først)
+- [ ] `ipfs-apps`: følg `../ipfs-apps/MIGRATION.md` — beslutningerne er taget
+      (statisk frontend uden IPFS, nyt domæneskema, TURN på platformen), og
+      testmiljøet er i drift. Tilbage: prod-deploy af `loft.gihc.online`,
+      M5-oprydning og det åbne lyd-routing-fund på telefoner (se
+      `../ipfs-apps/TODO.md`)
 
 Dynamisk volume-provisionering er allerede på plads (k3s' indbyggede
 `local-path-provisioner` kører).
@@ -117,8 +121,12 @@ app ejer kun sin egen konfiguration.
       servicen `coturn-metrics` (porten er ikke åbnet i firewall'en; der er
       endnu ingen scraper i clusteret)
 - [x] Verificér at `ipfs-apps`' TURN-relay-test stadig er grøn mod den delte
-      instans, efter app-manifesterne er ryddet — smoke-test 18/18 og e2e 5/5
-      (inkl. relay-only TURN) kørt 2026-09-12
+      instans, efter app-manifesterne er ryddet — smoke-test 18/18 og e2e 6/6 i
+      både Chromium og Firefox, inkl. relay-only TURN og et tjek af at den
+      deployede sides egen `config.js` giver en relay-kandidat (2026-09-12)
+- [ ] Sæt en scraper på `coturn-metrics` (Prometheus/Grafana) når der kommer
+      en monitoring-stack i clusteret — metrics-endpointet er verificeret, men
+      bliver ikke indsamlet endnu
 
 Status 2026-09-12: flytningen er gennemført og verificeret — se
 `referater/2026-09-12-01-06.md`. Åbne opfølgninger:
@@ -127,6 +135,9 @@ Status 2026-09-12: flytningen er gennemført og verificeret — se
   når der kommer flere apps/brugere.
 - Langsigtet: udsted kortlivede TURN-credentials fra appens API i stedet for at
   dele `static-auth-secret` med browseren.
+- Åbent fund i `ipfs-apps` (ikke platformen): WebRTC-lyden på en telefon gik ud
+  af højttaleren i stedet for Bluetooth-earpluggene. Se
+  `../ipfs-apps/TODO.md` → "Lyd-routing på telefoner".
 
 ## ADR'er
 
